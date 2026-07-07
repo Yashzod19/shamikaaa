@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Yash ki Khushi — A game for Shamika 🐱</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1c1c1c;
+    --paper:#ffffff;
+    --pink:#ff7aa2;
+    --lilac:#b7a4e0;
+    --leaf:#79c76f;
+    --sun:#ffd45e;
+    --sky:#bfe6ff;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; overflow:hidden; background:#000;}
+  body{font-family:'Baloo 2', 'Patrick Hand', sans-serif; user-select:none;}
+
+  #game{position:fixed; inset:0; overflow:hidden; background:#000;}
+  #stage{position:absolute; inset:0; overflow:hidden; transition:background 1.2s ease;}
+
+  /* ---------- generic character ---------- */
+  .char{position:absolute; bottom:60px; width:120px; height:170px; transition:filter .3s;}
+  .char svg{width:100%; height:100%; overflow:visible;}
+  .char.flip .body-svg{transform:scaleX(-1);}
+  .body-svg{transform-origin:50% 100%;}
+  .walking .body-svg{animation:bob .35s infinite alternate ease-in-out;}
+  @keyframes bob{from{transform:translateY(0) rotate(-1.5deg);} to{transform:translateY(-6px) rotate(1.5deg);}}
+  .walking.flip .body-svg{animation:bobflip .35s infinite alternate ease-in-out;}
+  @keyframes bobflip{from{transform:scaleX(-1) translateY(0) rotate(1.5deg);} to{transform:scaleX(-1) translateY(-6px) rotate(-1.5deg);}}
+
+  /* ---------- speech bubble ---------- */
+  .bubble{
+    position:absolute; bottom:105%; left:50%; transform:translateX(-50%) scale(0);
+    min-width:170px; max-width:260px; background:#fff; color:#111;
+    border:3px solid #111; border-radius:26px; padding:12px 16px 14px;
+    font-size:17px; line-height:1.25; font-weight:700; text-align:center;
+    transform-origin:bottom center; transition:transform .18s ease-out; z-index:40;
+    box-shadow:0 4px 0 rgba(0,0,0,.25);
+  }
+  .bubble::after{
+    content:""; position:absolute; bottom:-14px; left:50%; transform:translateX(-50%);
+    border:8px solid transparent; border-top:12px solid #111;
+  }
+  .bubble::before{
+    content:""; position:absolute; bottom:-9px; left:50%; transform:translateX(-50%);
+    border:7px solid transparent; border-top:11px solid #fff; z-index:1;
+  }
+  .bubble.show{transform:translateX(-50%) scale(1);}
+  .bubble .who{display:block; font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--pink); margin-bottom:2px;}
+
+  #tap-hint{
+    position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+    color:#fff; font-size:14px; opacity:0; transition:opacity .4s; z-index:60;
+    background:rgba(0,0,0,.45); padding:6px 14px; border-radius:20px; pointer-events:none;
+    font-weight:700;
+  }
+  #tap-hint.on{opacity:.9; animation:pulse 1.2s infinite;}
+  @keyframes pulse{0%,100%{transform:translateX(-50%) scale(1);}50%{transform:translateX(-50%) scale(1.06);}}
+
+  /* ---------- controls ---------- */
+  #controls{position:absolute; bottom:14px; left:0; right:0; display:none; justify-content:space-between; padding:0 18px; z-index:70; pointer-events:none;}
+  #controls.on{display:flex;}
+  .ctl{pointer-events:auto; width:64px; height:64px; border-radius:50%; border:3px solid #fff;
+    background:rgba(255,255,255,.15); color:#fff; font-size:26px; font-weight:800;
+    display:flex; align-items:center; justify-content:center; touch-action:none;}
+  .ctl:active{background:rgba(255,255,255,.4);}
+
+  /* ---------- start screen ---------- */
+  #start-screen{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    background:linear-gradient(180deg,#ffd9e6 0%, #e8dcff 55%, #d2f5d0 100%); text-align:center; z-index:100; padding:20px;
+  }
+  #start-screen h1{font-size:clamp(30px,7vw,58px); color:#3a2e4f; line-height:1.05; text-shadow:3px 3px 0 #fff;}
+  #start-screen h2{font-size:clamp(16px,3.5vw,24px); color:#7a5c8f; font-weight:700;}
+  #start-btn{
+    margin-top:10px; font-family:inherit; font-size:26px; font-weight:800; letter-spacing:1px;
+    padding:16px 52px; border-radius:50px; border:4px solid #3a2e4f; background:var(--pink); color:#fff;
+    cursor:pointer; box-shadow:0 6px 0 #3a2e4f; transition:transform .1s;
+  }
+  #start-btn:active{transform:translateY(4px); box-shadow:0 2px 0 #3a2e4f;}
+  .float-cat{position:absolute; font-size:34px; animation:floaty 4s infinite ease-in-out;}
+  @keyframes floaty{0%,100%{transform:translateY(0) rotate(-6deg);}50%{transform:translateY(-18px) rotate(6deg);}}
+
+  /* ---------- spotlight / torch ---------- */
+  .torch{
+    position:absolute; top:-10%; width:340px; height:120%; left:50%; transform:translateX(-50%);
+    background:radial-gradient(ellipse 60% 45% at 50% 20%, rgba(255,255,230,.95), rgba(255,255,210,.28) 55%, transparent 75%);
+    clip-path:polygon(42% 0, 58% 0, 100% 100%, 0 100%);
+    opacity:0; transition:opacity 1s; pointer-events:none;
+  }
+  .torch.on{opacity:1;}
+
+  .ground-line{position:absolute; bottom:58px; left:0; right:0; height:3px; background:rgba(255,255,255,.25);}
+
+  /* ---------- door ---------- */
+  #white-door{
+    position:absolute; bottom:60px; right:8%; width:120px; height:220px; background:#fff;
+    border:5px solid #ddd; border-radius:6px; box-shadow:0 0 60px 25px rgba(255,255,255,.75), inset 0 0 0 4px #eee;
+    display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:8px; padding:12px;
+  }
+  #white-door div{border:3px solid #e2e2e2; border-radius:3px; background:#fafafa;}
+  #white-door .knob{position:absolute; left:10px; top:50%; width:12px; height:12px; border-radius:50%; background:#caa64a; border:none;}
+  .door-glow{animation:glow 2s infinite alternate;}
+  @keyframes glow{from{box-shadow:0 0 50px 18px rgba(255,255,255,.6), inset 0 0 0 4px #eee;} to{box-shadow:0 0 90px 40px rgba(255,255,255,.95), inset 0 0 0 4px #eee;}}
+
+  /* ---------- overlays / titles ---------- */
+  .scene-title{
+    position:absolute; top:8%; left:50%; transform:translateX(-50%); color:#fff; font-size:clamp(18px,4vw,30px);
+    font-weight:800; letter-spacing:2px; text-align:center; opacity:0; transition:opacity 1s; z-index:30; text-shadow:2px 2px 0 #000; width:90%;
+  }
+  .scene-title.on{opacity:1;}
+
+  #flash{position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; transition:opacity .5s; z-index:200;}
+
+  /* ---------- minigame HUD ---------- */
+  .hud{position:absolute; top:14px; left:50%; transform:translateX(-50%); background:#fff; border:3px solid #111;
+    border-radius:30px; padding:8px 22px; font-weight:800; font-size:18px; color:#111; z-index:80; text-align:center; white-space:nowrap;}
+  .falling-cat{position:absolute; font-size:40px; z-index:20; filter:drop-shadow(0 3px 2px rgba(0,0,0,.2));}
+  #basket{position:absolute; bottom:70px; width:110px; height:70px; z-index:25; font-size:64px; text-align:center; line-height:70px;}
+
+  /* bowling */
+  #power-wrap{position:absolute; bottom:120px; left:50%; transform:translateX(-50%); width:240px; height:26px;
+    border:3px solid #fff; border-radius:20px; overflow:hidden; z-index:80; background:rgba(255,255,255,.15);}
+  #power-bar{height:100%; width:0%; background:linear-gradient(90deg,#79c76f,#ffd45e,#ff6b6b);}
+  #throw-btn{position:absolute; bottom:44px; left:50%; transform:translateX(-50%); z-index:80;
+    font-family:inherit; font-size:20px; font-weight:800; padding:12px 36px; border-radius:40px;
+    border:3px solid #fff; background:var(--pink); color:#fff; cursor:pointer;}
+  .pin{position:absolute; font-size:44px; transition:transform .5s, opacity .5s; z-index:15;}
+  .pin.down{transform:rotate(95deg) translateY(18px); opacity:.35;}
+  #head-ball{position:absolute; width:56px; height:56px; z-index:30;}
+
+  /* ---------- proposal ---------- */
+  .big-q{position:absolute; top:14%; left:50%; transform:translateX(-50%); color:#c2185b; font-size:clamp(24px,5.5vw,44px);
+    font-weight:800; text-align:center; width:92%; z-index:50; text-shadow:2px 2px 0 #fff;}
+  .ans-btn{position:absolute; z-index:90; font-family:inherit; font-size:24px; font-weight:800; padding:14px 44px;
+    border-radius:40px; border:4px solid #111; cursor:pointer; box-shadow:0 5px 0 #111;}
+  #yes-btn{background:#79c76f; color:#fff; left:calc(50% - 160px); top:60%;}
+  #no-btn{background:#ff6b6b; color:#fff; left:calc(50% + 40px); top:60%; transition:left .18s, top .18s;}
+
+  /* ---------- bloom / flowers ---------- */
+  .flower{position:absolute; transform:scale(0); transform-origin:50% 100%; z-index:10;}
+  .flower.grow{animation:sprout .9s ease-out forwards;}
+  @keyframes sprout{0%{transform:scale(0);}70%{transform:scale(1.15);}100%{transform:scale(1);}}
+  .heart{position:absolute; font-size:26px; z-index:60; animation:rise 4s linear forwards;}
+  @keyframes rise{from{transform:translateY(0) scale(.6); opacity:1;} to{transform:translateY(-70vh) scale(1.4); opacity:0;}}
+  #end-text{position:absolute; top:10%; left:50%; transform:translateX(-50%) scale(0); text-align:center; z-index:70; width:94%;
+    transition:transform .8s cubic-bezier(.2,1.6,.4,1);}
+  #end-text.on{transform:translateX(-50%) scale(1);}
+  #end-text h1{font-size:clamp(30px,7vw,60px); color:#c2185b; text-shadow:3px 3px 0 #fff;}
+  #end-text h2{font-size:clamp(18px,4vw,30px); color:#3a2e4f; margin-top:6px; text-shadow:2px 2px 0 #fff;}
+
+  .zap{position:absolute; font-size:50px; z-index:45; animation:zapzap .5s ease-out forwards;}
+  @keyframes zapzap{from{transform:scale(.3) rotate(0);} to{transform:scale(1.4) rotate(30deg); opacity:0;}}
+
+  .shadow-oval{position:absolute; bottom:52px; width:90px; height:16px; background:rgba(0,0,0,.35); border-radius:50%; filter:blur(2px);}
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="stage"></div>
+  <div id="tap-hint">tap / click to continue ▸</div>
+  <div id="controls">
+    <button class="ctl" id="btn-left">◀</button>
+    <button class="ctl" id="btn-right">▶</button>
+  </div>
+  <div id="flash"></div>
+</div>
+
+<script>
+/* =========================================================
+   YASH KI KHUSHI — a tiny story game for Shamika's birthday
+   ========================================================= */
+const stage = document.getElementById('stage');
+const tapHint = document.getElementById('tap-hint');
+const controls = document.getElementById('controls');
+const flash = document.getElementById('flash');
+
+const W = () => stage.clientWidth;
+const H = () => stage.clientHeight;
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------------- tiny sound engine (WebAudio) ---------------- */
+let AC = null;
+function audio(){ if(!AC){ AC = new (window.AudioContext||window.webkitAudioContext)(); } return AC; }
+function beep(freq=440, dur=0.12, type='sine', vol=0.15, when=0){
+  try{
+    const ctx = audio();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ctx.currentTime + when);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + when + dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(ctx.currentTime + when); o.stop(ctx.currentTime + when + dur + 0.05);
+  }catch(e){}
+}
+function blip(){ beep(700, .06, 'square', .06); }
+function boing(){ beep(180,.25,'sawtooth',.12); beep(120,.3,'sawtooth',.1,.08); }
+function sparkleSnd(){ [880,1175,1568].forEach((f,i)=>beep(f,.15,'triangle',.09,i*0.07)); }
+function sadSnd(){ [330,262,196].forEach((f,i)=>beep(f,.25,'sine',.1,i*0.22)); }
+function meow(){ beep(660,.09,'triangle',.12); beep(880,.14,'triangle',.1,.09); }
+function crash(){ beep(140,.3,'sawtooth',.2); beep(90,.4,'square',.15,.05); }
+
+/* ---- "mur mur" speaking voices (Animal Crossing style) ---- */
+const VOICES = {
+  yash:    {base:200, spread:60,  type:'triangle', vol:.09, dur:.055},
+  shamika: {base:360, spread:110, type:'sine',     vol:.10, dur:.05},
+  baba:    {base:110, spread:35,  type:'square',   vol:.07, dur:.07},
+  def:     {base:250, spread:70,  type:'triangle', vol:.08, dur:.05},
+};
+function voiceFor(who){
+  const w = (who||'').toLowerCase();
+  if(w.includes('sham')) return VOICES.shamika;
+  if(w.includes('baba')) return VOICES.baba;
+  if(w.includes('yash')) return VOICES.yash;
+  return VOICES.def;
+}
+function mumble(who){
+  const v = voiceFor(who);
+  const f = v.base + (Math.random()-0.5)*2*v.spread;
+  beep(f, v.dur, v.type, v.vol);
+  // tiny second harmonic for a soft "mrr" texture
+  beep(f*1.5, v.dur*0.6, 'sine', v.vol*0.35, 0.015);
+}
+function happyBirthdayTune(){
+  // simple melody
+  const N={C:262,D:294,E:330,F:349,G:392,A:440,Bb:466,C2:523};
+  const seq=[[N.G,.3],[N.G,.2],[N.A,.5],[N.G,.5],[N.C2,.5],[N.Bb ? N.Bb : 466,.9],
+             [N.G,.3],[N.G,.2],[N.A,.5],[N.G,.5],[N.D*2,.5],[N.C2,.9]];
+  let t=0;
+  seq.forEach(([f,d])=>{ beep(f,d,'triangle',.12,t); t+=d+0.06; });
+}
+
+/* ---------------- character SVGs ---------------- */
+function yashSVG(){
+  return `<svg class="body-svg" viewBox="0 0 120 170">
+    <ellipse cx="60" cy="166" rx="34" ry="5" fill="rgba(0,0,0,.18)"/>
+    <rect x="44" y="120" width="12" height="42" rx="6" fill="#2d3a5c"/>
+    <rect x="64" y="120" width="12" height="42" rx="6" fill="#2d3a5c"/>
+    <ellipse cx="50" cy="163" rx="10" ry="5" fill="#111"/>
+    <ellipse cx="70" cy="163" rx="10" ry="5" fill="#111"/>
+    <rect x="38" y="72" width="44" height="55" rx="16" fill="#1c1c1c"/>
+    <rect x="30" y="76" width="12" height="38" rx="6" fill="#1c1c1c"/>
+    <rect x="78" y="76" width="12" height="38" rx="6" fill="#1c1c1c"/>
+    <circle cx="34" cy="116" r="6" fill="#e8b98a"/>
+    <circle cx="86" cy="116" r="6" fill="#e8b98a"/>
+    <circle cx="60" cy="46" r="28" fill="#e8b98a"/>
+    <path d="M32 42 Q30 10 60 12 Q92 10 88 44 Q86 26 74 24 Q80 34 70 30 Q60 24 48 30 Q40 34 40 26 Q34 30 32 42 Z" fill="#111"/>
+    <circle cx="50" cy="48" r="3.4" fill="#111"/>
+    <circle cx="70" cy="48" r="3.4" fill="#111"/>
+    <path d="M52 60 Q60 66 68 60" stroke="#111" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <circle cx="42" cy="56" r="4" fill="#ff9db5" opacity=".6"/>
+    <circle cx="78" cy="56" r="4" fill="#ff9db5" opacity=".6"/>
+  </svg>`;
+}
+function yashSadFace(el){
+  const p = el.querySelector('path[d^="M52 60"]');
+  if(p) p.setAttribute('d','M52 64 Q60 58 68 64');
+}
+function yashHappyFace(el){
+  const p = el.querySelector('path[d^="M52"]');
+  if(p) p.setAttribute('d','M50 58 Q60 70 70 58');
+}
+function shamikaSVG(){
+  return `<svg class="body-svg" viewBox="0 0 120 175">
+    <ellipse cx="60" cy="171" rx="34" ry="5" fill="rgba(0,0,0,.18)"/>
+    <path d="M38 90 Q60 78 82 90 L92 150 Q60 162 28 150 Z" fill="#ff7aa2"/>
+    <rect x="28" y="92" width="12" height="36" rx="6" fill="#ff7aa2"/>
+    <rect x="80" y="92" width="12" height="36" rx="6" fill="#ff7aa2"/>
+    <circle cx="32" cy="130" r="6" fill="#f0c29a"/>
+    <circle cx="88" cy="130" r="6" fill="#f0c29a"/>
+    <rect x="48" y="148" width="9" height="20" rx="4" fill="#f0c29a"/>
+    <rect x="63" y="148" width="9" height="20" rx="4" fill="#f0c29a"/>
+    <ellipse cx="52" cy="169" rx="9" ry="4.5" fill="#c2185b"/>
+    <ellipse cx="68" cy="169" rx="9" ry="4.5" fill="#c2185b"/>
+    <path d="M30 50 Q26 120 40 128 L44 92 Z" fill="#111"/>
+    <path d="M90 50 Q94 120 80 128 L76 92 Z" fill="#111"/>
+    <circle cx="60" cy="50" r="27" fill="#f0c29a"/>
+    <path d="M33 48 Q30 14 60 15 Q90 14 87 48 Q84 28 60 26 Q36 28 33 48 Z" fill="#111"/>
+    <path d="M40 20 L34 4 L50 14 Z" fill="#111"/>
+    <path d="M80 20 L86 4 L70 14 Z" fill="#111"/>
+    <path d="M41 17 L37 8 L46 14 Z" fill="#ff9db5"/>
+    <path d="M79 17 L83 8 L74 14 Z" fill="#ff9db5"/>
+    <circle cx="51" cy="52" r="3.4" fill="#111"/>
+    <circle cx="69" cy="52" r="3.4" fill="#111"/>
+    <path d="M49 49 Q51 46 54 48" stroke="#111" stroke-width="2" fill="none"/>
+    <path d="M66 48 Q69 46 71 49" stroke="#111" stroke-width="2" fill="none"/>
+    <path d="M52 62 Q60 69 68 62" stroke="#111" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <circle cx="43" cy="59" r="4.2" fill="#ff9db5" opacity=".7"/>
+    <circle cx="77" cy="59" r="4.2" fill="#ff9db5" opacity=".7"/>
+  </svg>`;
+}
+function babaSVG(){
+  return `<svg class="body-svg" viewBox="0 0 130 180">
+    <ellipse cx="65" cy="176" rx="40" ry="6" fill="rgba(0,0,0,.25)"/>
+    <path d="M35 92 Q65 80 95 92 L104 170 Q65 180 26 170 Z" fill="#f2792f"/>
+    <rect x="24" y="94" width="13" height="42" rx="6" fill="#f2792f"/>
+    <rect x="93" y="94" width="13" height="42" rx="6" fill="#f2792f"/>
+    <circle cx="29" cy="140" r="7" fill="#d9a06b"/>
+    <circle cx="100" cy="140" r="7" fill="#d9a06b"/>
+    <rect x="103" y="60" width="7" height="95" rx="3" fill="#8a5a2b"/>
+    <circle cx="106" cy="56" r="9" fill="#ffd45e" stroke="#c98c00" stroke-width="2"/>
+    <circle cx="65" cy="52" r="26" fill="#d9a06b"/>
+    <path d="M42 58 Q40 108 65 106 Q90 108 88 58 Q80 72 65 72 Q50 72 42 58 Z" fill="#f5f5f5"/>
+    <path d="M40 46 Q36 16 65 14 Q94 16 90 46 Q88 30 65 28 Q42 30 40 46 Z" fill="#f2792f"/>
+    <circle cx="65" cy="16" r="6" fill="#ffd45e"/>
+    <path d="M52 44 Q55 40 59 43" stroke="#111" stroke-width="3" fill="none"/>
+    <path d="M71 43 Q75 40 78 44" stroke="#111" stroke-width="3" fill="none"/>
+    <circle cx="56" cy="48" r="3" fill="#111"/>
+    <circle cx="74" cy="48" r="3" fill="#111"/>
+    <circle cx="65" cy="41" r="3.5" fill="#e0562f"/>
+    <ellipse cx="65" cy="98" rx="22" ry="6" fill="none" stroke="#8a5a2b" stroke-width="3" stroke-dasharray="2 5"/>
+  </svg>`;
+}
+function catSVG(color="#3b3b3b"){
+  return `<svg viewBox="0 0 80 60" style="width:100%;height:100%;overflow:visible">
+    <ellipse cx="40" cy="52" rx="24" ry="5" fill="rgba(0,0,0,.15)"/>
+    <ellipse cx="44" cy="38" rx="24" ry="16" fill="${color}"/>
+    <circle cx="20" cy="28" r="13" fill="${color}"/>
+    <path d="M11 20 L8 8 L18 15 Z" fill="${color}"/>
+    <path d="M29 20 L32 8 L22 15 Z" fill="${color}"/>
+    <circle cx="16" cy="27" r="1.8" fill="#fff"/>
+    <circle cx="24" cy="27" r="1.8" fill="#fff"/>
+    <path d="M17 32 Q20 34 23 32" stroke="#fff" stroke-width="1.5" fill="none"/>
+    <path d="M66 34 Q78 26 72 16" stroke="${color}" stroke-width="6" fill="none" stroke-linecap="round"/>
+  </svg>`;
+}
+function flowerSVG(type){
+  if(type==='daisy') return `<svg viewBox="0 0 40 60" style="width:100%;height:100%">
+    <rect x="18" y="26" width="4" height="32" rx="2" fill="#5aa14e"/>
+    <g>
+      ${[0,45,90,135,180,225,270,315].map(a=>`<ellipse cx="20" cy="8" rx="5" ry="9" fill="#fff" transform="rotate(${a} 20 18)"/>`).join('')}
+      <circle cx="20" cy="18" r="6" fill="#ffd45e"/>
+    </g></svg>`;
+  if(type==='lav') return `<svg viewBox="0 0 30 64" style="width:100%;height:100%">
+    <rect x="13" y="28" width="4" height="34" rx="2" fill="#5aa14e"/>
+    ${[0,1,2,3,4].map(i=>`<ellipse cx="${15+(i%2?5:-5)}" cy="${8+i*6}" rx="6" ry="4.5" fill="#b7a4e0"/>`).join('')}
+    <ellipse cx="15" cy="4" rx="5" ry="4" fill="#c9b9ee"/></svg>`;
+  return `<svg viewBox="0 0 36 58" style="width:100%;height:100%">
+    <rect x="16" y="24" width="4" height="32" rx="2" fill="#5aa14e"/>
+    <circle cx="18" cy="16" r="11" fill="#ff9db5"/>
+    <circle cx="18" cy="16" r="5" fill="#c2185b"/></svg>`;
+}
+
+/* ---------------- helpers ---------------- */
+function makeChar(id, svg, x, opts={}){
+  const el = document.createElement('div');
+  el.className = 'char'; el.id = id;
+  el.style.left = x + 'px';
+  if(opts.bottom) el.style.bottom = opts.bottom;
+  if(opts.scale) el.style.transform = `scale(${opts.scale})`;
+  el.innerHTML = svg + `<div class="bubble"><span class="who"></span><span class="txt"></span></div>`;
+  stage.appendChild(el);
+  return el;
+}
+
+let advanceResolver = null;
+let typingSkip = null;
+function waitTap(){
+  tapHint.classList.add('on');
+  return new Promise(res=>{ advanceResolver = ()=>{ tapHint.classList.remove('on'); advanceResolver=null; res(); }; });
+}
+stage.addEventListener('pointerdown', ()=>{
+  if(typingSkip){ typingSkip(); return; }
+  if(advanceResolver){ blip(); advanceResolver(); }
+});
+window.addEventListener('keydown', e=>{
+  if(e.key===' '||e.key==='Enter'){
+    if(typingSkip){ typingSkip(); return; }
+    if(advanceResolver){ blip(); advanceResolver(); }
+  }
+});
+
+async function say(charEl, who, text, holdMs){
+  document.querySelectorAll('.bubble.show').forEach(b=>b.classList.remove('show'));
+  const b = charEl.querySelector('.bubble');
+  b.querySelector('.who').textContent = who;
+  const txtEl = b.querySelector('.txt');
+  txtEl.textContent = '';
+  b.classList.add('show');
+
+  // typewriter with mur-mur voice
+  let skipped = false;
+  typingSkip = ()=>{ skipped = true; };
+  const chars = Array.from(text); // emoji-safe
+  for(let i=0; i<chars.length; i++){
+    if(skipped){ txtEl.textContent = text; break; }
+    txtEl.textContent += chars[i];
+    const ch = chars[i];
+    if(i % 2 === 0 && /[A-Za-z0-9?!]/.test(ch)) mumble(who);
+    await wait(/[.,!?…]/.test(ch) ? 200 : 60);
+  }
+  typingSkip = null;
+
+  if(holdMs){ await wait(holdMs); } else { await waitTap(); }
+  b.classList.remove('show');
+  await wait(120);
+}
+
+/* ---------------- walking system ---------------- */
+const keys = {left:false, right:false};
+window.addEventListener('keydown', e=>{ if(e.key==='ArrowLeft')keys.left=true; if(e.key==='ArrowRight')keys.right=true; });
+window.addEventListener('keyup', e=>{ if(e.key==='ArrowLeft')keys.left=false; if(e.key==='ArrowRight')keys.right=false; });
+function bindHold(btn, dir){
+  const on = e=>{ e.preventDefault(); keys[dir]=true; };
+  const off= e=>{ e.preventDefault(); keys[dir]=false; };
+  btn.addEventListener('pointerdown', on);
+  btn.addEventListener('pointerup', off);
+  btn.addEventListener('pointerleave', off);
+  btn.addEventListener('pointercancel', off);
+}
+bindHold(document.getElementById('btn-left'),'left');
+bindHold(document.getElementById('btn-right'),'right');
+
+function walkUntil(charEl, condition){
+  controls.classList.add('on');
+  return new Promise(res=>{
+    let x = parseFloat(charEl.style.left)||0;
+    let raf;
+    function loop(){
+      let moving = false;
+      if(keys.right){ x += 4.4; charEl.classList.remove('flip'); moving=true; }
+      if(keys.left){ x -= 4.4; charEl.classList.add('flip'); moving=true; }
+      x = Math.max(-40, Math.min(W()-70, x));
+      charEl.style.left = x+'px';
+      charEl.classList.toggle('walking', moving);
+      if(condition(x)){ charEl.classList.remove('walking'); controls.classList.remove('on'); cancelAnimationFrame(raf); res(); return; }
+      raf = requestAnimationFrame(loop);
+    }
+    loop();
+  });
+}
+
+function doFlash(color='#fff'){
+  flash.style.background = color;
+  flash.style.opacity = 1;
+  setTimeout(()=>flash.style.opacity=0, 350);
+}
+function clearStage(bg='#000'){
+  stage.innerHTML = '';
+  stage.style.background = bg;
+}
+function title(text){
+  const t=document.createElement('div'); t.className='scene-title'; t.textContent=text;
+  stage.appendChild(t); requestAnimationFrame(()=>t.classList.add('on'));
+  return t;
+}
+
+/* =========================================================
+   SCENE 0 — START SCREEN
+   ========================================================= */
+function sceneStart(){
+  clearStage('#000');
+  const s = document.createElement('div');
+  s.id = 'start-screen';
+  s.innerHTML = `
+    <div class="float-cat" style="top:12%; left:10%">🐱</div>
+    <div class="float-cat" style="top:20%; right:12%; animation-delay:.8s">🐈</div>
+    <div class="float-cat" style="bottom:18%; left:16%; animation-delay:1.4s">🐾</div>
+    <div class="float-cat" style="bottom:14%; right:18%; animation-delay:.4s">💗</div>
+    <h2>A tiny game made with 100% love by Yash</h2>
+    <h1>YASH KI KHUSHI 💫<br>starring SHAMIKA 🐱</h1>
+    <h2>Happy Birthday Chotuuu 🎂</h2>
+    <button id="start-btn">▶ START</button>`;
+  stage.appendChild(s);
+  document.getElementById('start-btn').onclick = ()=>{ audio(); sparkleSnd(); sceneFall(); };
+}
+
+/* =========================================================
+   SCENE 1 — MR BEAN ENTRY (fall from sky)
+   ========================================================= */
+async function sceneFall(){
+  clearStage('#000');
+  stage.insertAdjacentHTML('beforeend','<div class="ground-line"></div>');
+  const torch = document.createElement('div'); torch.className='torch'; torch.style.left='30%';
+  stage.appendChild(torch);
+  await wait(600);
+  torch.classList.add('on'); sparkleSnd();
+  await wait(1200);
+
+  const yash = makeChar('yash', yashSVG(), W()*0.3 - 60);
+  yash.style.bottom = H()+'px';
+  yash.style.transition = 'bottom 1.1s cubic-bezier(.45,0,.9,.6)';
+  await wait(80);
+  yash.style.bottom = '60px';
+  await wait(1150);
+  boing(); doFlash('rgba(255,255,255,.5)');
+  // little bounce
+  yash.style.transition='bottom .18s ease-out';
+  yash.style.bottom='95px'; await wait(180);
+  yash.style.bottom='60px'; await wait(250);
+  yash.style.transition='';
+
+  await wait(400);
+  await say(yash,'Yash','Hi! My name is Yash 👋');
+  await say(yash,'Yash','I am looking for HAPPINESS in my life... 😔');
+  await say(yash,'Yash','I have an appointment with BABA CHAMATKAR at 3 AM 🕒');
+  await say(yash,'Yash','Let\'s hope he gives me happiness 🙏');
+  await say(yash,'Yash','(Use ▶ arrow / button to walk me there)', 1800);
+
+  await walkUntil(yash, x => x >= W()-110);
+  doFlash('#000');
+  sceneBaba();
+}
+
+/* =========================================================
+   SCENE 2 — BABA CHAMATKAR
+   ========================================================= */
+async function sceneBaba(){
+  clearStage('#000');
+  const t = title('🔮 BABA CHAMATKAR KA DARBAR — 3:00 AM 🔮');
+
+  const torch1 = document.createElement('div'); torch1.className='torch on'; torch1.style.left='28%'; torch1.style.width='260px';
+  const torch2 = document.createElement('div'); torch2.className='torch on'; torch2.style.left='72%'; torch2.style.width='300px';
+  stage.appendChild(torch1); stage.appendChild(torch2);
+  stage.insertAdjacentHTML('beforeend','<div class="ground-line"></div>');
+
+  const yash = makeChar('yash', yashSVG(), W()*0.28-60);
+  const baba = makeChar('baba', babaSVG(), W()*0.72-65, {scale:1.15});
+  baba.classList.add('flip');
+
+  await wait(1400);
+  t.classList.remove('on');
+
+  await say(yash,'Yash','Hi Baba Chamatkar 🙏');
+  await say(baba,'Baba','OM PHAT SWAHAAA!!! 🔥');
+  await say(yash,'Yash','Baba...?');
+  await say(baba,'Baba','Chant this mantra beta. It will make you IMMORTAL! ♾️');
+  await say(yash,'Yash','I don\'t want to be immortal baba... I want to be HAPPY till I live 🥺');
+  await say(baba,'Baba','Happy? ...What is that? 🤔');
+  await say(yash,'Yash','Ummmm...');
+  await say(baba,'Baba','???');
+  await say(yash,'Yash','Umm... I don\'t know exactly 😅');
+  await say(baba,'Baba','You come at 3 AM... wake up my WiFi... and you don\'t even know?! 😤');
+  await say(baba,'Baba','GET LOST before I turn you into a DOLL! 🪆');
+  await say(yash,'Yash','Arre baba, chill—');
+
+  // comedy zap: baba zaps, yash briefly becomes a chicken emoji
+  const zap = document.createElement('div'); zap.className='zap'; zap.textContent='⚡✨';
+  zap.style.left = (parseFloat(yash.style.left)+20)+'px'; zap.style.bottom='140px';
+  stage.appendChild(zap); crash(); doFlash('rgba(255,230,120,.6)');
+  const svgHold = yash.innerHTML;
+  yash.innerHTML = `<div style="font-size:90px; text-align:center; line-height:170px">🐔</div><div class="bubble"><span class="who"></span><span class="txt"></span></div>`;
+  await say(yash,'Yash(?)','BAKKK BAK BAK BAKKK?!?! 🐔');
+  yash.innerHTML = svgHold;
+  await say(baba,'Baba','Oops... wrong mantra 😬 Anyway. GET. LOST. 👉');
+  await say(yash,'Yash','OKOK BYE BABA, NICE BEARD, LOVE YOU, BYEEE!! 🏃💨');
+
+  // yash runs off left automatically
+  yash.classList.add('walking','flip');
+  yash.style.transition='left 1.2s ease-in';
+  yash.style.left='-160px';
+  await wait(1300);
+  doFlash('#000');
+  sceneSad();
+}
+
+/* =========================================================
+   SCENE 3 — SAD YASH, back at first place
+   ========================================================= */
+async function sceneSad(){
+  clearStage('#000');
+  stage.insertAdjacentHTML('beforeend','<div class="ground-line"></div>');
+  const torch = document.createElement('div'); torch.className='torch on'; torch.style.left='30%';
+  stage.appendChild(torch);
+  const yash = makeChar('yash', yashSVG(), W()*0.3-60);
+  yashSadFace(yash);
+  sadSnd();
+  await wait(700);
+  await say(yash,'Yash','Baba also didn\'t help me... 😞');
+  await say(yash,'Yash','Maybe happiness is just not for me... 💔');
+  await wait(400);
+
+  // door appears
+  const door = document.createElement('div');
+  door.id='white-door'; door.classList.add('door-glow');
+  door.innerHTML = '<div></div><div></div><div></div><div></div><div class="knob"></div>';
+  stage.appendChild(door);
+  sparkleSnd();
+  await say(yash,'Yash','Arre?! A door?? With white light?? ✨');
+  await say(yash,'Yash','(Walk me to the door ▶)', 1600);
+
+  await walkUntil(yash, x => x >= W()*0.92 - 190);
+  doFlash('#fff');
+  await wait(400);
+  sceneWhite();
+}
+
+/* =========================================================
+   SCENE 4 — WHITE ROOM, SHAMIKA
+   ========================================================= */
+async function sceneWhite(){
+  clearStage('linear-gradient(180deg,#ffffff,#f4f2ff)');
+  const yash = makeChar('yash', yashSVG(), W()*0.2-60);
+  await wait(500);
+  await say(yash,'Yash','Whoa... everything is WHITE here 😳');
+
+  // Shamika appears with sparkle
+  doFlash('rgba(255,180,210,.5)'); sparkleSnd();
+  const sham = makeChar('sham', shamikaSVG(), W()*0.68-60);
+  sham.classList.add('flip');
+  const kitty = document.createElement('div');
+  kitty.style.cssText='position:absolute; bottom:60px; width:76px; height:58px;';
+  kitty.style.left=(W()*0.68+70)+'px';
+  kitty.innerHTML = catSVG('#e89b3c');
+  stage.appendChild(kitty); meow();
+
+  await say(yash,'Yash','Hi!! Who are you?? 😲');
+  await say(sham,'Shamika','Hiii, I\'m SHAMIKAAAAAAA 💁‍♀️✨');
+  await say(yash,'Yash','Acha 😐');
+  await say(sham,'Shamika','You wished for happiness na? 😏');
+  await say(yash,'Yash','YESSSS!!');
+  await say(sham,'Shamika','God has sent ME as your happiness 😇💗');
+  await say(yash,'Yash','Will you make my life happy??? 🥹');
+  await say(sham,'Shamika','Yesss! We will play together, you can share everything with me...');
+  await say(sham,'Shamika','I will ALWAYS be there for you. You can even cry on my shoulder 🤗');
+  await say(yash,'Yash','YAIIIIIIII!!! 🎉🎉🎉');
+  yashHappyFace(yash);
+  await say(sham,'Shamika','But wait wait wait... 🖐️ First prove yourself, hero!');
+  await say(sham,'Shamika','Play my 2 challenges. Win them, and then we\'ll talk 😼');
+  await say(yash,'Yash','Challenge accepted!! 😤');
+  miniGameCats();
+}
+
+/* =========================================================
+   MINI-GAME 1 — CATCH THE CATS
+   ========================================================= */
+async function miniGameCats(){
+  clearStage('linear-gradient(180deg,#bfe6ff,#e8f7ff)');
+  const hud = document.createElement('div'); hud.className='hud';
+  hud.textContent='CHALLENGE 1 🐱 Catch 8 cats!';
+  stage.appendChild(hud);
+
+  const info = document.createElement('div');
+  info.className='hud'; info.style.top='auto'; info.style.bottom='16px'; info.style.fontSize='14px';
+  info.textContent='Move with ◀ ▶ keys or drag your finger';
+  stage.appendChild(info);
+
+  const basket = document.createElement('div'); basket.id='basket'; basket.textContent='🧺';
+  basket.style.left=(W()/2-55)+'px';
+  stage.appendChild(basket);
+
+  let caught=0, missed=0, running=true;
+  const need=8;
+  function updateHud(){ hud.textContent = `CHALLENGE 1 🐱  Caught: ${caught}/${need}   Escaped: ${missed}`; }
+  updateHud();
+
+  // basket movement
+  let bx = W()/2-55;
+  function moveLoop(){
+    if(!running) return;
+    if(keys.left) bx-=7;
+    if(keys.right) bx+=7;
+    bx=Math.max(0,Math.min(W()-110,bx));
+    basket.style.left=bx+'px';
+    requestAnimationFrame(moveLoop);
+  }
+  moveLoop();
+  controls.classList.add('on');
+  const drag = e=>{ bx = Math.max(0,Math.min(W()-110, e.clientX-55)); basket.style.left=bx+'px'; };
+  stage.addEventListener('pointermove', drag);
+  stage.addEventListener('pointerdown', drag);
+
+  const catFaces=['🐱','😺','😸','🐈','😻','🐈‍⬛'];
+  function spawnCat(){
+    if(!running) return;
+    const c=document.createElement('div');
+    c.className='falling-cat';
+    c.textContent=catFaces[Math.floor(Math.random()*catFaces.length)];
+    let cx=Math.random()*(W()-60)+10, cy=-60;
+    c.style.left=cx+'px'; c.style.top=cy+'px';
+    const speed=2.6+Math.random()*2.4 + caught*0.18;
+    const wob=Math.random()*2-1;
+    stage.appendChild(c);
+    function fall(){
+      if(!running){ c.remove(); return; }
+      cy+=speed; cx+=Math.sin(cy/40)*wob;
+      c.style.top=cy+'px'; c.style.left=cx+'px';
+      const basketTop=H()-140;
+      if(cy>basketTop-20 && cy<basketTop+30 && cx>bx-20 && cx<bx+100){
+        caught++; meow(); updateHud();
+        c.textContent='💗'; c.style.transition='transform .3s, opacity .3s';
+        c.style.transform='scale(1.6)'; c.style.opacity='0';
+        setTimeout(()=>c.remove(),300);
+        if(caught>=need) finish(true);
+        return;
+      }
+      if(cy>H()){ missed++; updateHud(); c.remove(); return; }
+      requestAnimationFrame(fall);
+    }
+    fall();
+    if(running) setTimeout(spawnCat, 750+Math.random()*550);
+  }
+  setTimeout(spawnCat, 600);
+
+  let finished=false;
+  async function finish(){
+    if(finished) return; finished=true;
+    running=false;
+    controls.classList.remove('on');
+    stage.removeEventListener('pointermove', drag);
+    stage.removeEventListener('pointerdown', drag);
+    sparkleSnd(); doFlash('rgba(255,255,255,.6)');
+    await wait(400);
+    hud.textContent='🎉 ALL CATS SAFE! Shamika is impressed!';
+    const sham = makeChar('sham', shamikaSVG(), W()*0.62-60);
+    await say(sham,'Shamika','Wowww, my cats love you already 😻 Okay... ONE more challenge!');
+    miniGameBowling();
+  }
+}
+
+/* =========================================================
+   MINI-GAME 2 — HEAD BOWLING 😂
+   ========================================================= */
+async function miniGameBowling(){
+  clearStage('linear-gradient(180deg,#2b2140,#4a3a6b)');
+  stage.insertAdjacentHTML('beforeend','<div class="ground-line" style="bottom:70px"></div>');
+  const hud=document.createElement('div'); hud.className='hud';
+  hud.textContent='CHALLENGE 2 🎳 HEAD BOWLING!';
+  stage.appendChild(hud);
+
+  const sham = makeChar('sham', shamikaSVG(), W()*0.5-60);
+  const yash = makeChar('yash', yashSVG(), 30, {bottom:'70px'});
+  sham.style.bottom='70px';
+  await wait(400);
+  await say(sham,'Shamika','Challenge 2: BOWLING! 🎳 ...But I forgot the ball 🙄');
+  await say(yash,'Yash','No problem madam... take MY HEAD! 😎');
+  await say(sham,'Shamika','WHAT?! 😱 ...okay lol 😂');
+  sham.style.transition='left .8s'; sham.style.left=(W()*0.7)+'px'; sham.classList.add('flip');
+  await wait(900);
+
+  // remove head from yash svg, create ball
+  const headBits = yash.querySelectorAll('circle[cx="60"][cy="46"], path[d^="M32 42"], circle[cx="50"][cy="48"], circle[cx="70"][cy="48"], path[d^="M52"], circle[cx="42"][cy="56"], circle[cx="78"][cy="56"]');
+  headBits.forEach(h=>h.style.display='none');
+  boing();
+  const ball=document.createElement('div');
+  ball.id='head-ball';
+  ball.innerHTML=`<svg viewBox="0 0 60 60" style="width:100%;height:100%">
+    <circle cx="30" cy="30" r="26" fill="#e8b98a"/>
+    <path d="M6 28 Q4 2 30 3 Q58 2 54 30 Q52 14 42 13 Q47 21 38 18 Q30 13 20 18 Q13 21 12 14 Q7 17 6 28Z" fill="#111"/>
+    <circle cx="21" cy="32" r="3" fill="#111"/><circle cx="39" cy="32" r="3" fill="#111"/>
+    <path d="M22 42 Q30 48 38 42" stroke="#111" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
+  ball.style.left='72px'; ball.style.bottom='150px';
+  stage.appendChild(ball);
+
+  // pins
+  const pins=[];
+  const baseX=W()-170;
+  const pinPos=[[0,0],[46,-14],[46,14],[92,-28],[92,0],[92,28]];
+  pinPos.forEach(([dx,dy],i)=>{
+    const p=document.createElement('div'); p.className='pin'; p.textContent='🥛';
+    p.style.left=(baseX+dx)+'px'; p.style.bottom=(78+dy+14)+'px';
+    stage.appendChild(p); pins.push(p);
+  });
+
+  // power bar
+  const pw=document.createElement('div'); pw.id='power-wrap'; pw.innerHTML='<div id="power-bar"></div>';
+  stage.appendChild(pw);
+  const btn=document.createElement('button'); btn.id='throw-btn'; btn.textContent='THROW! 🎯';
+  stage.appendChild(btn);
+  const label=document.createElement('div'); label.className='hud';
+  label.style.top='auto'; label.style.bottom='170px'; label.style.fontSize='14px';
+  label.textContent='Stop the bar in the GREEN-YELLOW zone!';
+  stage.appendChild(label);
+
+  const bar=document.getElementById('power-bar');
+  let p=0, dir=1, osc=true;
+  function oscLoop(){
+    if(!osc) return;
+    p+=dir*2.2; if(p>=100){p=100;dir=-1;} if(p<=0){p=0;dir=1;}
+    bar.style.width=p+'%';
+    requestAnimationFrame(oscLoop);
+  }
+  oscLoop();
+
+  let tries=0;
+  btn.onclick=async ()=>{
+    osc=false; btn.disabled=true; tries++;
+    const power=p; // 0-100
+    // power zones: <35 = weak, 35-54 = okay, 55-90 = STRIKE, >90 = overshoot
+    let toKnock=0, overshoot=false;
+    if(power>90){ overshoot=true; toKnock=1; }
+    else if(power>=55) toKnock=6;
+    else if(power>=35) toKnock=3;
+    else toKnock=1;
+
+    const dist = overshoot ? (W()+120) : Math.min(baseX-20, 120 + (power/90)*(baseX-140));
+    ball.style.transition=`left ${0.9}s cubic-bezier(.3,.6,.6,1), bottom .9s`;
+    ball.style.bottom='84px';
+    ball.querySelector('svg').style.transition='transform .9s linear';
+    ball.querySelector('svg').style.transform='rotate(1080deg)';
+    beep(300,.3,'sine',.1);
+    ball.style.left=dist+'px';
+    await wait(950);
+    if(overshoot){ label.textContent='Your head flew out of the stadium!! 😂🚀'; }
+
+    // knock the nearest pins first
+    let knocked=0;
+    const standing=[...pins].filter(x=>!x.classList.contains('down'))
+      .sort((a,b)=>parseFloat(a.style.left)-parseFloat(b.style.left));
+    standing.slice(0,toKnock).forEach(pin=>{ pin.classList.add('down'); knocked++; });
+    if(knocked>0) crash();
+    const totalDown=pins.filter(x=>x.classList.contains('down')).length;
+    hud.textContent=`CHALLENGE 2 🎳 Pins down: ${totalDown}/6`;
+
+    if(totalDown>=6){
+      sparkleSnd();
+      label.textContent='STRIKE!!! 🤯';
+      await wait(700);
+      await say(sham,'Shamika','STRIIIIKE! Okay okay, you win, hero 😂👏');
+      // return head
+      ball.remove();
+      headBits.forEach(h=>h.style.display='');
+      await say(yash,'Yash','*puts head back on* Ahh, much better 😌');
+      sceneProposal();
+    } else if(tries>=3){
+      label.textContent='Shamika secretly pushes the pins with her paw... 🐾';
+      await wait(900);
+      pins.forEach(pin=>pin.classList.add('down'));
+      crash(); meow();
+      hud.textContent='CHALLENGE 2 🎳 Pins down: 6/6 (with cat help 😼)';
+      await wait(600);
+      await say(sham,'Shamika','Shhh 🤫 my cat helped. You still win, cutie 😂');
+      ball.remove();
+      headBits.forEach(h=>h.style.display='');
+      await say(yash,'Yash','*puts head back on* Team work!! 🙌');
+      sceneProposal();
+    } else {
+      label.textContent = overshoot
+        ? `Head flew out of the stadium 😂🚀 Try again! (${3-tries} left)`
+        : `Try again! (${3-tries} tries left)`;
+      // reset ball
+      ball.style.transition='none';
+      ball.querySelector('svg').style.transition='none';
+      ball.querySelector('svg').style.transform='rotate(0deg)';
+      ball.style.left='72px'; ball.style.bottom='150px';
+      await wait(300);
+      osc=true; oscLoop(); btn.disabled=false;
+    }
+  };
+}
+
+/* =========================================================
+   SCENE 5 — PROPOSAL
+   ========================================================= */
+async function sceneProposal(){
+  clearStage('linear-gradient(180deg,#ffffff,#ffeef4)');
+  const yash = makeChar('yash', yashSVG(), W()*0.32-60);
+  const sham = makeChar('sham', shamikaSVG(), W()*0.6-60);
+  sham.classList.add('flip');
+  yashHappyFace(yash);
+  await wait(500);
+
+  await say(yash,'Yash','Shamika... I came looking for happiness...');
+  await say(yash,'Yash','...and I found YOU 🥹');
+
+  // kneel
+  yash.style.transition='transform .5s';
+  yash.style.transform='rotate(-14deg) translateY(14px)';
+  beep(523,.2,'triangle',.1); beep(659,.25,'triangle',.1,.15);
+  await wait(600);
+
+  const q=document.createElement('div'); q.className='big-q';
+  q.innerHTML='💍 WILL YOU BE MY DATE?? 💍';
+  stage.appendChild(q);
+
+  const yes=document.createElement('button'); yes.className='ans-btn'; yes.id='yes-btn'; yes.textContent='YESSSS 💗';
+  const no=document.createElement('button'); no.className='ans-btn'; no.id='no-btn'; no.textContent='No 🙄';
+  stage.appendChild(yes); stage.appendChild(no);
+
+  // the No button is a coward — it runs away
+  let dodges=0;
+  const dodge=()=>{
+    dodges++;
+    no.style.left=Math.random()*(W()-160)+'px';
+    no.style.top=(Math.random()*40+35)+'%';
+    boing();
+    if(dodges===2) no.textContent='Nope 😝';
+    if(dodges===4) no.textContent='Catch me! 🏃';
+    if(dodges>=6){ no.textContent='Fine, YES only 😩'; no.onclick=accept; no.onpointerenter=null; no.onpointerdown=dodge2null; }
+  };
+  function dodge2null(){}
+  no.onpointerenter=dodge;
+  no.onpointerdown=e=>{ e.preventDefault(); dodge(); };
+
+  function accept(){
+    yes.remove(); no.remove(); q.remove();
+    sceneHugBloom(yash, sham);
+  }
+  yes.onclick=accept;
+}
+
+/* =========================================================
+   SCENE 6 — HUG → BLOOM → ENDING
+   ========================================================= */
+async function sceneHugBloom(yash, sham){
+  await say(sham,'Shamika','YESSSSSS!!! 💗💗💗');
+  yash.style.transform='';
+  await wait(300);
+
+  // walk toward each other and "hug" (overlap slightly)
+  yash.style.transition='left 1s ease'; sham.style.transition='left 1s ease';
+  yash.style.left=(W()/2-95)+'px';
+  sham.style.left=(W()/2-15)+'px';
+  await wait(1100);
+  sparkleSnd();
+
+  // bloom!
+  stage.style.transition='background 3s ease';
+  stage.style.background='linear-gradient(180deg,#bfe6ff 0%, #d8f3d0 45%, #8fd07e 100%)';
+  happyBirthdayTune();
+
+  const types=['daisy','lav','pink','daisy','lav','daisy'];
+  const count = Math.min(60, Math.floor(W()/14));
+  for(let i=0;i<count;i++){
+    setTimeout(()=>{
+      const f=document.createElement('div'); f.className='flower';
+      const t=types[Math.floor(Math.random()*types.length)];
+      const size=28+Math.random()*36;
+      f.style.width=size+'px'; f.style.height=size*1.6+'px';
+      f.style.left=Math.random()*(W()-40)+'px';
+      f.style.bottom=(20+Math.random()*130)+'px';
+      f.innerHTML=flowerSVG(t);
+      stage.appendChild(f);
+      requestAnimationFrame(()=>f.classList.add('grow'));
+    }, i*90);
+  }
+  // a few cats in the meadow
+  const catCols=['#3b3b3b','#e89b3c','#777','#fff'];
+  for(let i=0;i<4;i++){
+    setTimeout(()=>{
+      const c=document.createElement('div');
+      c.style.cssText=`position:absolute; width:${60+Math.random()*30}px; height:50px; bottom:${30+Math.random()*90}px; left:${Math.random()*(W()-80)}px; z-index:12; transform:scale(0); transition:transform .6s cubic-bezier(.2,1.6,.4,1);`;
+      c.innerHTML=catSVG(catCols[i%catCols.length]);
+      stage.appendChild(c); meow();
+      requestAnimationFrame(()=>c.style.transform='scale(1)');
+    }, 1200+i*500);
+  }
+  // hearts forever
+  const heartTimer=setInterval(()=>{
+    const h=document.createElement('div'); h.className='heart';
+    h.textContent=['💗','💖','💕','🐾','✨'][Math.floor(Math.random()*5)];
+    h.style.left=Math.random()*W()+'px'; h.style.bottom='120px';
+    stage.appendChild(h);
+    setTimeout(()=>h.remove(),4100);
+  }, 380);
+
+  await wait(2600);
+  const end=document.createElement('div'); end.id='end-text';
+  end.innerHTML=`<h1>I LOVE YOU CHOTUUUUUU 💗</h1>
+    <h2>Happy Birthday Shamika 🎂🐱</h2>
+    <h2 style="margin-top:14px; font-size:16px; color:#5b4a72">— forever yours, Yash ✨</h2>
+    <button id="replay" style="margin-top:18px; font-family:inherit; font-size:18px; font-weight:800; padding:10px 30px; border-radius:40px; border:3px solid #3a2e4f; background:#fff; color:#3a2e4f; cursor:pointer; box-shadow:0 4px 0 #3a2e4f;">↻ Play again</button>`;
+  stage.appendChild(end);
+  requestAnimationFrame(()=>end.classList.add('on'));
+  document.getElementById('replay').onclick=()=>{ clearInterval(heartTimer); sceneStart(); };
+}
+
+/* ---------------- boot ---------------- */
+sceneStart();
+</script>
+</body>
+</html>
