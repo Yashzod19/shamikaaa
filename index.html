@@ -198,7 +198,7 @@ function beep(freq=440, dur=0.12, type='sine', vol=0.15, when=0){
   }catch(e){}
 }
 function blip(){ beep(700, .06, 'square', .06); }
-function boing(){ beep(180,.25,'sawtooth',.12); beep(120,.3,'sawtooth',.1,.08); }
+function boing(){ beep(180,.25,'sawtooth',.12); beep(120,.3 ,'sawtooth',.1,.08); }
 function sparkleSnd(){ [880,1175,1568].forEach((f,i)=>beep(f,.15,'triangle',.09,i*0.07)); }
 function sadSnd(){ [330,262,196].forEach((f,i)=>beep(f,.25,'sine',.1,i*0.22)); }
 function meow(){ beep(660,.09,'triangle',.12); beep(880,.14,'triangle',.1,.09); }
@@ -461,7 +461,6 @@ function sceneStart(){
     <div class="float-cat" style="top:20%; right:12%; animation-delay:.8s">🐈</div>
     <div class="float-cat" style="bottom:18%; left:16%; animation-delay:1.4s">🐾</div>
     <div class="float-cat" style="bottom:14%; right:18%; animation-delay:.4s">💗</div>
-    <h2>A tiny game made with 100% love by Yash</h2>
     <h1>YASH KI KHUSHI 💫<br>starring SHAMIKA 🐱</h1>
     <h2>Happy Birthday Chotuuu 🎂</h2>
     <button id="start-btn">▶ START</button>`;
